@@ -24,6 +24,8 @@ The installer downloads this toolkit into a temporary folder, copies the shared 
       SKILL.md
     ios-global-keyboard-dismiss/
       SKILL.md
+    ios-iap-review-information/
+      SKILL.md
     ios-settings-app-store-review/
       SKILL.md
     ios-subscription-system/
@@ -83,6 +85,7 @@ claude-ios-toolkit/
     ios-app-rating-feedback/
     ios-debug-production-apps/
     ios-global-keyboard-dismiss/
+    ios-iap-review-information/
     ios-settings-app-store-review/
     ios-subscription-system/
 ```
