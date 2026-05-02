@@ -5,8 +5,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOOLKIT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SHARED_CLAUDE="$TOOLKIT_DIR/CLAUDE.md"
 SHARED_SKILLS_DIR="$TOOLKIT_DIR/skills"
-PROJECT_DIR="${1:-$PWD}"
-PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
+if [[ $# -ne 1 ]]; then
+  echo "Usage: install-ios-claude-toolkit <project-root>" >&2
+  exit 1
+fi
+
+PROJECT_DIR="$(cd "$1" && pwd)"
 PROJECT_CLAUDE_DIR="$PROJECT_DIR/.claude"
 PROJECT_CLAUDE="$PROJECT_CLAUDE_DIR/CLAUDE.md"
 PROJECT_SKILLS_DIR="$PROJECT_CLAUDE_DIR/skills"

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_DIR="${1:-$PWD}"
-PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
+PROJECT_DIR="$PWD"
 PROJECT_CLAUDE="$PROJECT_DIR/.claude/CLAUDE.md"
 PROJECT_SKILLS_DIR="$PROJECT_DIR/.claude/skills"
 SHARED_BLOCK_START="<!-- claude-ios-toolkit:start -->"
@@ -37,5 +36,5 @@ if [[ -d "$PROJECT_SKILLS_DIR" ]]; then
 fi
 
 echo
-echo "Uninstalled iOS Claude Code toolkit from: $PROJECT_DIR"
+echo "Uninstalled Claude iOS Toolkit from: $PROJECT_DIR"
 echo "Removed skills: $removed_count"
