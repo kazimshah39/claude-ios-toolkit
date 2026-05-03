@@ -20,6 +20,8 @@ The installer downloads this toolkit into a temporary folder, copies the shared 
   skills/
     ios-app-rating-feedback/
       SKILL.md
+    ios-app-store-screenshots/
+      SKILL.md
     ios-debug-production-apps/
       SKILL.md
     ios-global-keyboard-dismiss/
@@ -83,6 +85,7 @@ claude-ios-toolkit/
     install-ios-claude-toolkit
   skills/
     ios-app-rating-feedback/
+    ios-app-store-screenshots/
     ios-debug-production-apps/
     ios-global-keyboard-dismiss/
     ios-iap-review-information/
