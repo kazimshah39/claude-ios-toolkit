@@ -1,6 +1,6 @@
 # Claude iOS Toolkit
 
-Reusable Claude Code instructions and skills for iOS app projects.
+Reusable Claude Code project instructions and skills for iOS app projects.
 
 ## Install
 
@@ -10,13 +10,13 @@ Run this from the root of your iOS app project:
 curl -fsSL https://raw.githubusercontent.com/kazimshah39/claude-ios-toolkit/main/install.sh | bash
 ```
 
-The installer downloads this toolkit into a temporary folder, copies the shared instructions and skills into the current project, then removes the temporary folder.
+The installer downloads this toolkit into a temporary folder, installs shared iOS project instructions and skills into the current project, then removes the temporary folder.
 
 ## What it installs
 
 ```text
+CLAUDE.md
 .claude/
-  CLAUDE.md
   skills/
     ios-app-rating-feedback/
       SKILL.md
@@ -34,7 +34,7 @@ The installer downloads this toolkit into a temporary folder, copies the shared 
       SKILL.md
 ```
 
-The shared instructions are copied into a managed block at the top of `.claude/CLAUDE.md`:
+Project instructions are sourced from this toolkit’s `CLAUDE.project.md` and installed into a managed block at the top of the target project’s root `CLAUDE.md`:
 
 ```text
 <!-- claude-ios-toolkit:start -->
@@ -42,7 +42,7 @@ The shared instructions are copied into a managed block at the top of `.claude/C
 <!-- claude-ios-toolkit:end -->
 ```
 
-Add project-specific instructions below that block.
+Add project-specific instructions outside that block.
 
 ## Project-specific skills
 
@@ -62,7 +62,7 @@ Run the same command again from the project root:
 curl -fsSL https://raw.githubusercontent.com/kazimshah39/claude-ios-toolkit/main/install.sh | bash
 ```
 
-This refreshes the managed shared instructions block and toolkit-installed skills.
+This refreshes the managed project instructions block and toolkit-installed skills.
 
 ## Uninstall
 
@@ -79,6 +79,7 @@ The uninstaller removes only the managed toolkit block and toolkit-installed ski
 ```text
 claude-ios-toolkit/
   CLAUDE.md
+  CLAUDE.project.md
   install.sh
   uninstall.sh
   bin/
@@ -95,7 +96,8 @@ claude-ios-toolkit/
 
 ## Maintenance rules
 
-- Keep shared skills generic across iOS apps.
-- Put common behavior in `CLAUDE.md`.
+- Keep reusable skills generic across iOS apps.
+- Put target-project guidance in `CLAUDE.project.md`.
+- Keep toolkit-repository guidance in `CLAUDE.md`.
 - Keep each skill focused on one task.
 - Do not hardcode one app’s name, bundle ID, App Store ID, prices, product IDs, legal URLs, webhook URLs, or paths.

@@ -1,16 +1,35 @@
 ---
 name: ios-app-rating-feedback
-description: Build or audit an iOS app rating and private feedback system with sentiment gate, requestReview, FluentCRM webhook, eligibility rules, debug testing, and iCloud KVS persistence
+description: Build or audit a portable iOS app rating and private feedback system with a sentiment gate, StoreKit review prompt, consented feedback submission, eligibility rules, debug testing, and iCloud KVS persistence
 trigger: /ios-app-rating-feedback
 ---
 
 # /ios-app-rating-feedback
 
-Build or audit an iOS app rating and private feedback system that asks at positive “wow moments,” routes happy users to Apple’s in-app rating prompt, routes unhappy users to private feedback, and persists prompt eligibility across reinstalls with iCloud Key-Value Store.
+Build or audit an iOS app rating and private feedback system that asks at positive “wow moments,” routes happy users to Apple’s review prompt, routes users who need help to private feedback, and persists prompt eligibility across reinstalls with iCloud Key-Value Store.
+
+This skill is based on a proven pattern:
+
+```text
+Positive milestone → sentiment gate
+  Love it!   → native StoreKit review prompt
+  Need help  → private feedback form + explicit consent + webhook/email submission
+  Not now    → dismiss + cooldown
+```
+
+## Modes
+
+Use the user’s wording to choose the mode:
+
+- **Audit mode**: inspect the current app and report gaps. Do not edit unless the user asks.
+- **Implementation mode**: add or update the rating/feedback system using existing project patterns.
+- **Rewrite/maintenance mode**: update this skill or related reusable toolkit files while keeping them generic.
+
+Follow the shared infer-first rules in `CLAUDE.md`.
 
 ## Goal
 
-At key positive moments, show a sentiment gate:
+At configured positive moments, show a lightweight sentiment gate:
 
 ```text
 How’s your experience?
@@ -18,28 +37,40 @@ How’s your experience?
 Love it!   Need help   Not now
 ```
 
-- `Love it!` → trigger iOS `requestReview()`.
-- `Need help` → open a private feedback form and send it to FluentCRM.
-- `Not now` → dismiss and record a decline.
+- `Love it!` records the prompt attempt for this version and calls Apple’s review API.
+- `Need help` dismisses the gate, then opens a private feedback form.
+- `Not now` records a decline and suppresses future prompts for the cooldown window.
 
-Never show the prompt during negative moments, such as trial expiry, failed purchases, errors, crashes, rejected imports, or other frustration states.
+Never show the prompt during negative moments, such as trial expiry, failed purchases, errors, crashes, rejected imports, cancellation flows, hard paywalls, support flows, or other frustration states.
+
+## Discover before asking
+
+Inspect the app first and infer values from trusted project files when available:
+
+- App name, bundle identifier, version, build number, app target, and scheme.
+- Existing Settings, support, rating, privacy, subscription, analytics, URL-opening, haptics, and keyboard helper patterns.
+- Existing App Store ID or App Store review URL.
+- Existing feedback transport: webhook, backend endpoint, mailto link, support URL, CRM integration, or contact form.
+- Existing privacy/consent wording and data-sharing controls.
+- Existing milestone/event definitions and where successful workflows complete.
+- Existing iCloud KVS/UserDefaults conventions.
+
+Ask only when the value is missing, ambiguous, sensitive, or a business/legal decision.
 
 ## Values to confirm
 
-Follow the shared infer-first rules in `CLAUDE.md`. For this skill, confirm only the task-specific values that cannot be safely inferred:
+Confirm these before implementation if they cannot be safely inferred:
 
-- What counts as an entry for the `20+ entries` rule.
+- Which user actions count as entries for the `20+ entries` rule.
 - Which positive “wow moments” should trigger eligibility checks.
-- Whether the known FluentCRM webhook URL is correct for the current app before sending production feedback there.
-- Any app-specific feedback categories, support routing, or privacy/legal wording decisions.
+- The production destination for private feedback.
+- Whether the destination is a FluentCRM webhook, app backend, support email, or another system.
+- Any app-specific feedback categories, routing, support ownership, or privacy/legal wording.
+- App Store ID if no trusted source exists and a Settings review link is requested.
 
-Known FluentCRM webhook URL if the user confirms this destination is correct for the current app:
+Always ask for the private feedback webhook URL before adding or changing webhook submission code, unless the user already provided the URL in the current request. If the app already contains a webhook URL, show the discovered URL to the user and ask whether to reuse or replace it.
 
-```text
-https://wp.toolsforfree.com/?fluentcrm=1&route=contact&hash=79d6fe90-e645-4189-b771-0010f78e1347
-```
-
-Do not silently send production user feedback to any webhook unless the user confirms the destination is correct for the current app.
+Do **not** silently send production user feedback to a webhook copied from another app. If a webhook is present in the current app, reuse it only after verifying it belongs to this app or the user confirms it.
 
 ## Official Apple references
 
@@ -54,6 +85,33 @@ When web access is available and the work is release-facing, check Apple’s cur
 
 If Apple’s current docs conflict with this skill, follow Apple’s docs and update this skill.
 
+## Recommended architecture
+
+Prefer a small app-specific service plus SwiftUI views. Do not create a large analytics, routing, networking, or feedback abstraction unless the app already has one.
+
+A typical shape:
+
+```swift
+@Observable
+@MainActor
+final class AppRatingService {
+    static let shared = AppRatingService()
+
+    var shouldShowSentimentGate = false
+    var shouldShowFeedbackForm = false
+
+    func recordEntry()
+    func triggerIfEligible(source: FeedbackSource, isNegativeMoment: Bool)
+    func userLovesIt()
+    func userNeedsHelp()
+    func userDismissed()
+    func dismissFeedback()
+    func sendFeedback(email: String?, message: String, feedbackType: String, feedbackSource: String) async -> Bool
+}
+```
+
+Use app naming that matches the project. If the app already uses dependency injection or environment objects, follow that pattern instead of adding a singleton.
+
 ## Eligibility rules
 
 A user is eligible only when all are true:
@@ -62,62 +120,41 @@ A user is eligible only when all are true:
 - At least 20 entries, where the app defines what an entry means.
 - At least 90 days since the last rating/feedback prompt attempt.
 - At least 90 days since the last decline.
-- Prompt has not already been shown for the current app version.
-- User has not already rated through this system.
+- The current app version has not already been prompted/rated through this system.
 - User is not in a negative moment.
-- Subscription/trial state is not negative, e.g. do not prompt when trial is expired or paywall is hard-blocking.
+- Subscription/trial state is not negative, e.g. do not prompt during expired-trial or hard-blocking paywall states.
 
-Persist all rating/feedback prompt state with `NSUbiquitousKeyValueStore` so eligibility, declines, rating state, app-version prompt history, first launch date, and entry count survive reinstalls and sync across devices. Use `UserDefaults` only as a local fallback for iCloud sync delays.
+Persist rating/feedback prompt state with `NSUbiquitousKeyValueStore` so eligibility, declines, app-version prompt history, first launch date, and entry count survive reinstall and sync across devices. Use `UserDefaults` as a local fallback for iCloud sync delays, not as the only source of truth.
 
 Recommended persisted keys:
 
 - `{appKey}_rating_first_launch_date`
+- `{appKey}_rating_entry_count`
 - `{appKey}_rating_last_prompt_date`
 - `{appKey}_rating_last_decline_date`
 - `{appKey}_rating_last_prompted_version`
-- `{appKey}_rating_has_rated`
-- `{appKey}_rating_entry_count`
+- `{appKey}_rating_last_rated_version`
 
-## Architecture
-
-Create or update a small rating service, for example:
-
-```swift
-@Observable
-@MainActor
-final class AppRatingService {
-    static let shared = AppRatingService()
-
-    var isShowingSentimentGate = false
-    var isShowingFeedbackForm = false
-
-    func recordEntry()
-    func considerPrompt(source: FeedbackSource, isNegativeMoment: Bool)
-    func chooseLoveIt(requestReview: RequestReviewAction)
-    func chooseNeedHelp()
-    func chooseNotNow()
-    func submitFeedback(message: String, email: String?, type: FeedbackType, source: FeedbackSource) async
-}
-```
-
-Keep it focused. Do not build a large analytics abstraction unless one already exists.
+Use the current app’s stable key prefix, usually derived from the bundle ID or product name. Do not copy another app’s key prefix.
 
 ## Wow moments
 
-Trigger `considerPrompt(...)` only after positive milestones, such as:
+Trigger eligibility checks only after positive milestones, such as:
 
+- User successfully creates, imports, scans, saves, or completes meaningful content.
 - User reaches a meaningful learning, creation, productivity, or workflow milestone.
-- User creates enough entries/content/items to show commitment.
-- User successfully exports, saves, completes, or shares a valuable result.
+- User successfully exports, shares, publishes, or completes a valuable result.
 - User completes onboarding successfully.
-- User finishes a purchase or successful restore.
+- User completes a purchase or successful restore.
 - User completes a key workflow without errors.
 
-Do not show immediately at launch. Do not show during error recovery, cancellation, hard paywall, trial expiry, or support flows.
+Call entry tracking at durable success points only. Do not increment entries for failed attempts, canceled flows, previews, validation errors, or duplicate events.
+
+Do not show the gate immediately at launch. If a milestone completes during navigation or sheet dismissal, delay briefly so the rating sheet does not fight another presentation.
 
 ## Sentiment gate UI
 
-The UI should be lightweight and respectful:
+Keep the UI lightweight and respectful:
 
 - Title: `How’s your experience?`
 - Optional subtitle: one short sentence tied to the app’s value.
@@ -128,52 +165,71 @@ The UI should be lightweight and respectful:
 
 Behavior:
 
-- `Love it!` records prompt/rated state and calls Apple’s review prompt.
-- `Need help` opens feedback form instead of Apple review prompt.
-- `Not now` records decline and suppresses prompts for 90 days.
+- `Love it!` dismisses the gate, records the current version as prompted/rated-through-system, and calls Apple’s review prompt.
+- `Need help` dismisses the gate and opens the feedback form after a short delay if needed for sheet transitions.
+- `Not now` dismisses the gate and records a decline date.
 
-Use SwiftUI’s `@Environment(\.requestReview)` where practical:
+Prefer SwiftUI’s `@Environment(\.requestReview)` inside views when practical:
 
 ```swift
 @Environment(\.requestReview) private var requestReview
-```
 
-Then call:
-
-```swift
 requestReview()
 ```
 
-Apple may or may not show the system rating UI; do not assume the prompt appeared.
+If the project centralizes review requests in a service, use `AppStore.requestReview(in:)` with the active foreground `UIWindowScene`.
 
-## Feedback form
+Apple may or may not show the system rating UI. Never assume the prompt appeared, and never gate rewards, features, or content on review submission.
 
-The private feedback form should collect:
+## Feedback form UI
 
-- Optional email
-- Feedback type
-- Message
+The private feedback form should collect only what support needs:
 
-Keep it short. Do not ask for unnecessary personal data.
+- Optional email.
+- Feedback type.
+- Message.
+- Explicit consent before sending data externally.
 
-Feedback types can be simple, for example:
+Recommended feedback types:
 
-- `help`
 - `bug`
-- `feature_request`
+- `feature`
+- `question`
 - `other`
 
-Feedback source should identify where the gate appeared, for example:
+Use project-specific categories only if they already exist or the user confirms them.
 
+Recommended sources:
+
+- `sentiment_gate`
 - `milestone`
 - `export`
 - `purchase`
-- `settings_debug`
 - `manual_settings`
+- `settings_debug`
 
-## FluentCRM webhook payload
+The send button should require:
 
-After the user submits the feedback form, send a POST request to the confirmed FluentCRM webhook URL with these exact fields:
+- Non-empty message.
+- Not currently sending.
+- Consent granted when data leaves the app or goes to a third-party service.
+
+On success, thank the user and close the form. On failure, show a clear retryable error. Do not block the main thread.
+
+## Feedback destination
+
+Prefer the app’s existing support destination if one exists. The production destination may be one of:
+
+- A FluentCRM webhook.
+- An app backend endpoint.
+- A support email or mailto fallback.
+- A helpdesk/contact form URL.
+
+For webhook-based feedback, always ask the user for the webhook URL before implementation, even if the app appears to have one. If a URL already exists in the app, present it as the default to confirm. If the app has no private feedback destination, ask the user what to use. Do not invent or reuse a webhook from another app.
+
+### FluentCRM/webhook payload
+
+For a confirmed FluentCRM webhook or compatible JSON endpoint, send a POST request over HTTPS with JSON. Recommended fields:
 
 - `email`
 - `app_name`
@@ -189,7 +245,9 @@ After the user submits the feedback form, send a POST request to the confirmed F
 
 Use ISO-8601 for `feedback_date`.
 
-Recommended email generation:
+Set `Content-Type: application/json`, use a reasonable timeout, treat only 2xx responses as success, and surface failures to the user.
+
+Recommended anonymous email generation when the backend requires an email:
 
 ```swift
 private func generateEmail(from email: String?) -> String {
@@ -204,34 +262,59 @@ private func generateEmail(from email: String?) -> String {
 }
 ```
 
-Use HTTPS. Set a reasonable timeout. Handle failures gracefully with a user-visible retry/error message. Do not block the main thread.
+If the destination does not require email, prefer omitting email over generating one, unless the existing backend expects this placeholder convention.
+
+## Consent and privacy
+
+Private feedback submission must be explicit:
+
+- Do not send feedback without the user tapping Send on the feedback form.
+- Require a consent toggle when sending feedback to a third party, CRM, analytics system, or external backend.
+- Make email optional unless the user confirms support requires it.
+- Clearly allow anonymous feedback when supported.
+- Disclose what is sent: message, optional email, app version, subscription status if included, device model, and OS version.
+- Show or name the destination in user-facing copy when practical, e.g. support domain or company name.
+- Ensure the app’s Privacy Policy/App Store privacy details cover feedback data collection.
+
+Avoid unnecessary personal data. Do not include document contents, user-generated content unrelated to the feedback message, precise location, contacts, photos, identifiers for advertisers, or analytics profiles unless the user explicitly confirms a compliant reason.
 
 ## Device/app metadata
 
 Collect only practical support metadata:
 
-- App name: configured app display name
-- App ID: bundle identifier
-- App version: `CFBundleShortVersionString`, optionally build number too
-- Device model: current device model identifier or readable fallback
-- OS version: `UIDevice.current.systemVersion`
-- Subscription status: e.g. `pro`, `trial_active`, `trial_expired`, `free`, or `unknown`
+- App name: configured display name/product name.
+- App ID: bundle identifier.
+- App version: `CFBundleShortVersionString`, optionally build number.
+- Device model: machine identifier or readable fallback.
+- OS version: `UIDevice.current.systemName` + `UIDevice.current.systemVersion`.
+- Subscription status: `pro`, `trial_active`, `trial_expired`, `free`, or `unknown`.
 
 If the app has a subscription service, derive subscription status from it. Otherwise use `unknown`.
 
+## Settings integration
+
+If the app has Settings or About screens, integrate lightly:
+
+- Add or reuse a “Rate on App Store” row if the App Store ID is known.
+- Add or reuse a “Send Feedback” row using the app’s support destination.
+- Add a privacy/consent row only if the app already has a privacy section or the feedback form needs persistent consent.
+
+A manual Settings feedback row can use the same feedback form with source `manual_settings`. A mailto link is acceptable as a fallback when no webhook/backend is available.
+
+Do not expose debug-only controls in Release builds.
+
 ## Debug testing
 
-Add a debug-only Settings option under `#if DEBUG` to trigger the sentiment gate manually.
+Add debug-only controls under `#if DEBUG` when implementing:
 
-Recommended debug controls:
+- Trigger Sentiment Gate.
+- Trigger Feedback Form.
+- Reset Rating Prompt State, if useful.
+- Set Eligible Rating State, if useful.
 
-- Show Rating Sentiment Gate
-- Reset Rating Prompt State
-- Set Eligible Rating State, if useful
+Use source `settings_debug` for debug submissions.
 
-The debug source should be `settings_debug`.
-
-Never expose debug reset/force-prompt controls in release builds.
+Never expose debug reset/force-prompt controls in Release builds.
 
 ## iCloud KVS persistence
 
@@ -239,78 +322,77 @@ Use `NSUbiquitousKeyValueStore.default`:
 
 - Call `synchronize()` when loading.
 - Write prompt state to iCloud KVS.
-- Mirror key values to `UserDefaults` as a fallback.
-- Prefer iCloud values when available.
+- Mirror important values to `UserDefaults` as fallback.
+- Prefer the newest or most conservative value when resolving KVS/UserDefaults differences.
+- Avoid resetting state during normal app updates.
 
-State must persist across reinstall and across user devices signed into the same Apple ID.
+State should persist across reinstall and across devices signed into the same Apple ID when iCloud KVS is available.
 
-## Privacy and App Store notes
+## Audit checklist
 
-- Do not send feedback without user action on the feedback form.
-- Disclose feedback collection in the app’s Privacy Policy.
-- If email is optional, clearly allow anonymous feedback.
-- If no valid email exists, generate an anonymous `cf_<uuid>@example.com` email.
-- Do not use the sentiment gate to manipulate reviews or pressure users.
-- Do not repeatedly prompt users who decline or already rated.
-- Respect Apple’s limits: `requestReview()` is system-controlled and may not show every time.
+When auditing an existing app, inspect:
+
+- Rating/feedback service and state ownership.
+- Sentiment gate UI and sheet presentation behavior.
+- Wow-moment trigger points.
+- Negative-moment suppression.
+- Eligibility thresholds and cooldown logic.
+- Current-version prompt/rated tracking.
+- iCloud KVS/UserDefaults persistence.
+- Feedback form fields and validation.
+- Consent and privacy disclosure.
+- Feedback destination and payload.
+- Settings support/rating rows.
+- Debug Settings controls and Release separation.
+- App Store review link and StoreKit usage.
+
+Report findings in this order:
+
+1. Critical release/privacy blockers.
+2. App Store compliance issues.
+3. Eligibility or prompt-frequency bugs.
+4. Feedback delivery/payload gaps.
+5. Debug/release separation issues.
+6. UX improvements.
 
 ## Testing checklist
 
 Test or instruct the user to test:
 
 - First launch date initializes correctly.
-- Entry count reaches eligibility threshold.
+- Entry count increments only on successful milestones.
 - Prompt does not appear before 30 days.
 - Prompt does not appear before 20 entries.
 - Prompt does not appear within 90 days of prompt/decline.
 - Prompt appears at a configured wow moment once eligible.
 - Prompt does not appear during negative moments or expired trial hard paywall.
-- `Love it!` triggers `requestReview()` and records rated/prompted state.
-- `Need help` opens feedback form.
-- Feedback POST includes all required FluentCRM fields.
-- Invalid/missing email generates `cf_<uuid>@example.com`.
-- `Not now` records decline and suppresses for 90 days.
-- Prompt appears only once per app version.
-- KVS state persists across reinstall/real device where practical.
-- Debug Settings trigger works only in DEBUG builds.
+- `Love it!` triggers StoreKit review request and records version state.
+- `Need help` opens feedback form after the gate closes.
+- `Not now` records decline and suppresses prompts for 90 days.
+- Feedback cannot send without a message and required consent.
+- Feedback POST includes the confirmed required fields.
+- Missing/invalid email is omitted or converted according to backend requirements.
+- Network failure shows a user-visible retryable error.
+- Prompt state persists through app relaunch and, where practical, reinstall/iCloud sync.
+- Debug controls work only in DEBUG builds.
+- Release build does not expose debug force/reset controls.
 
-For Claude Code in iOS projects: after significant changes, list available simulators, choose a valid simulator, build with `xcodebuild`, and fix build errors. For UI changes, visually verify the flow when practical.
-
-## Audit mode
-
-When auditing an existing app, inspect:
-
-- Rating/feedback service
-- Sentiment gate UI
-- Wow-moment trigger points
-- Eligibility rules
-- KVS/UserDefaults persistence
-- Feedback form
-- FluentCRM webhook payload
-- Debug Settings controls
-- Privacy disclosures and user consent
-- Negative-moment suppression
-
-Report:
-
-1. Critical release/privacy blockers
-2. Eligibility behavior correctness
-3. Missing payload fields or metadata
-4. Debug/release separation issues
-5. Recommended UX improvements
+For Claude Code in iOS projects: after significant code changes, list available simulators, choose a valid simulator, build with `xcodebuild`, and fix build errors. For UI changes, visually verify the flow when practical.
 
 ## Common pitfalls
 
 Avoid:
 
-- Prompting at launch
-- Prompting during negative moments
-- Prompting after trial expiry/hard paywall
-- Asking for App Store reviews from unhappy users
-- Sending private feedback without explicit user submission
-- Forgetting anonymous email generation
-- UserDefaults-only state that resets on reinstall
-- Ignoring Apple’s system-controlled review prompt limits
-- Showing debug trigger/reset controls in Release
-- Re-prompting every version without the 90-day delay
-- Storing or sending unnecessary personal data
+- Prompting at launch.
+- Prompting during negative moments.
+- Prompting after trial expiry or hard paywall.
+- Asking unhappy users for App Store reviews.
+- Sending private feedback without explicit user submission.
+- Sending feedback to a webhook copied from another app.
+- Hiding the feedback destination or data payload from the user.
+- UserDefaults-only state that resets on reinstall.
+- Ignoring Apple’s system-controlled review prompt limits.
+- Showing debug trigger/reset controls in Release.
+- Re-prompting every version without the 90-day cooldown.
+- Storing or sending unnecessary personal data.
+- Creating a broad support/analytics abstraction for a small rating flow.
