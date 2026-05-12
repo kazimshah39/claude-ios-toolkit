@@ -12,7 +12,7 @@ fi
 
 PROJECT_DIR="$(cd "$1" && pwd)"
 PROJECT_CLAUDE_DIR="$PROJECT_DIR/.claude"
-PROJECT_CLAUDE="$PROJECT_DIR/CLAUDE.md"
+PROJECT_CLAUDE="$PROJECT_CLAUDE_DIR/CLAUDE.md"
 PROJECT_SKILLS_DIR="$PROJECT_CLAUDE_DIR/skills"
 SHARED_BLOCK_START="<!-- claude-ios-toolkit:start -->"
 SHARED_BLOCK_END="<!-- claude-ios-toolkit:end -->"
@@ -38,7 +38,7 @@ shared_block="$(mktemp)"
 
 if [[ ! -f "$PROJECT_CLAUDE" ]]; then
   cp "$shared_block" "$PROJECT_CLAUDE"
-  echo "Created CLAUDE.md with shared iOS project instructions."
+  echo "Created .claude/CLAUDE.md with shared iOS project instructions."
 elif grep -Fq "$SHARED_BLOCK_START" "$PROJECT_CLAUDE" && grep -Fq "$SHARED_BLOCK_END" "$PROJECT_CLAUDE"; then
   tmp_file="$(mktemp)"
   python3 - "$PROJECT_CLAUDE" "$shared_block" "$SHARED_BLOCK_START" "$SHARED_BLOCK_END" > "$tmp_file" <<'PY'
@@ -52,7 +52,7 @@ updated = project[:start_index] + block + project[end_index:]
 print(updated, end="")
 PY
   mv "$tmp_file" "$PROJECT_CLAUDE"
-  echo "Updated shared iOS project instructions block in CLAUDE.md."
+  echo "Updated shared iOS project instructions block in .claude/CLAUDE.md."
 else
   tmp_file="$(mktemp)"
   {
@@ -61,7 +61,7 @@ else
     cat "$PROJECT_CLAUDE"
   } > "$tmp_file"
   mv "$tmp_file" "$PROJECT_CLAUDE"
-  echo "Added shared iOS project instructions block to top of CLAUDE.md."
+  echo "Added shared iOS project instructions block to top of .claude/CLAUDE.md."
 fi
 
 rm "$shared_block"

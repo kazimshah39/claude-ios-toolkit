@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_DIR="$PWD"
-PROJECT_CLAUDE="$PROJECT_DIR/CLAUDE.md"
+PROJECT_CLAUDE="$PROJECT_DIR/.claude/CLAUDE.md"
 PROJECT_SKILLS_DIR="$PROJECT_DIR/.claude/skills"
 SHARED_BLOCK_START="<!-- claude-ios-toolkit:start -->"
 SHARED_BLOCK_END="<!-- claude-ios-toolkit:end -->"
@@ -21,7 +21,7 @@ updated = updated.lstrip("\n")
 print(updated, end="")
 PY
   mv "$tmp_file" "$PROJECT_CLAUDE"
-  echo "Removed shared iOS project instructions block from CLAUDE.md."
+  echo "Removed shared iOS project instructions block from .claude/CLAUDE.md."
 fi
 
 if [[ -d "$PROJECT_SKILLS_DIR" ]]; then

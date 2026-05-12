@@ -20,6 +20,6 @@ This repository maintains reusable Claude Code skills and installer scripts for 
 
 - Keep installer behavior simple and predictable.
 - Source target-project instructions from `CLAUDE.project.md`.
-- Install target-project instructions into the target project’s root `CLAUDE.md` inside the managed toolkit block.
+- Install target-project instructions into the target project’s `.claude/CLAUDE.md` inside the managed toolkit block.
 - Install reusable skills into the target project’s `.claude/skills` directory.
 - Since the toolkit is not live yet, prefer clean maintainable behavior over backward compatibility shims.

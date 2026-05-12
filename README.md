@@ -15,8 +15,8 @@ The installer downloads this toolkit into a temporary folder, installs shared iO
 ## What it installs
 
 ```text
-CLAUDE.md
 .claude/
+  CLAUDE.md
   skills/
     ios-app-rating-feedback/
       SKILL.md
@@ -34,7 +34,7 @@ CLAUDE.md
       SKILL.md
 ```
 
-Project instructions are sourced from this toolkit’s `CLAUDE.project.md` and installed into a managed block at the top of the target project’s root `CLAUDE.md`:
+Project instructions are sourced from this toolkit’s `CLAUDE.project.md` and installed into a managed block at the top of the target project’s `.claude/CLAUDE.md`:
 
 ```text
 <!-- claude-ios-toolkit:start -->
